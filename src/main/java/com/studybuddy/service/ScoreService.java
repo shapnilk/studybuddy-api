@@ -14,7 +14,6 @@ public class ScoreService {
     @Autowired
     private ScoreRepository scoreRepository;
 
-    // Save a new score
     public Score saveScore(ScoreRequest request) {
         Score score = new Score();
         score.setPlayerName(request.getPlayerName());
@@ -26,49 +25,45 @@ public class ScoreService {
         return scoreRepository.save(score);
     }
 
-    // Get all scores
     public List<Score> getAllScores() {
         return scoreRepository.findTop20ByOrderByCreatedAtDesc();
     }
 
-    // Get scores for a player
     public List<Score> getScoresByPlayer(String playerName) {
         return scoreRepository.findByPlayerNameOrderByCreatedAtDesc(playerName);
     }
 
-    // Get leaderboard
     public List<Score> getLeaderboard() {
         return scoreRepository.findTop10ByOrderByScoreDesc();
     }
 
-    // Get scores by subject
     public List<Score> getScoresBySubject(String subject) {
         return scoreRepository.findBySubjectOrderByScoreDesc(subject);
     }
 
-    // Get global stats
     public StatsResponse getStats() {
         List<Score> allScores = scoreRepository.findAll();
         long totalQuizzes = allScores.size();
+        double avgScore = 0.0;
+        double bestScore = 0.0;
+        long aiQuizzes = 0;
 
-        double avgScore = allScores.stream()
-            .mapToDouble(Score::getPercentage)
-            .average()
-            .orElse(0.0);
+        if (!allScores.isEmpty()) {
+            double total = 0.0;
+            double best = 0.0;
+            for (Score s : allScores) {
+                double pct = s.getTotal() > 0 ? (double) s.getScore() / s.getTotal() * 100 : 0;
+                total += pct;
+                if (pct > best) best = pct;
+                if ("ai".equals(s.getSource())) aiQuizzes++;
+            }
+            avgScore = Math.round((total / allScores.size()) * 10.0) / 10.0;
+            bestScore = Math.round(best * 10.0) / 10.0;
+        }
 
-        double bestScore = allScores.stream()
-            .mapToDouble(Score::getPercentage)
-            .max()
-            .orElse(0.0);
-
-        long aiQuizzes = allScores.stream()
-            .filter(s -> "ai".equals(s.getSource()))
-            .count();
-
-        return new StatsResponse(totalQuizzes, Math.round(avgScore * 10) / 10.0, Math.round(bestScore * 10) / 10.0, aiQuizzes);
+        return new StatsResponse(totalQuizzes, avgScore, bestScore, aiQuizzes);
     }
 
-    // Delete a score by ID
     public boolean deleteScore(Long id) {
         if (scoreRepository.existsById(id)) {
             scoreRepository.deleteById(id);
